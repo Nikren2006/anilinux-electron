@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anilinux - Anime Viewer</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">🎌</div>
+                <div class="logo-text">Anilinux</div>
+            </div>
+            <nav class="sidebar-nav">
+                <button class="sidebar-item active" data-view="home" aria-label="Домой">
+                    <span class="sidebar-icon">🏠</span>
+                    <span class="sidebar-text">Домой</span>
+                </button>
+                <button class="sidebar-item" data-view="history" aria-label="История">
+                    <span class="sidebar-icon">📜</span>
+                    <span class="sidebar-text">История</span>
+                </button>
+                <button class="sidebar-item" data-view="favorites" aria-label="Избранное">
+                    <span class="sidebar-icon">❤️</span>
+                    <span class="sidebar-text">Избранное</span>
+                </button>
+                <button class="sidebar-item" data-view="settings" aria-label="Настройки">
+                    <span class="sidebar-icon">⚙️</span>
+                    <span class="sidebar-text">Настройки</span>
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="app-header">
+                <h1 class="app-title">Anime Viewer</h1>
+                <div class="header-controls">
+                    <div class="search-container">
+                        <input type="text" class="search-bar" placeholder="Поиск аниме..." aria-label="Поиск аниме">
+                        <button class="search-btn" aria-label="Поиск">
+                            <span class="search-icon">🔍</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="parser-section">
+                <label for="parser-selector" class="parser-label">Источник данных:</label>
+                <select id="parser-selector" class="parser-selector">
+                    <option value="animevost" selected>AnimeVost</option>
+                </select>
+            </div>
+
+            <section class="anime-section" id="homeSection">
+                <div class="anime-grid" id="animeGrid">
+                    <!-- Anime cards will be inserted here -->
+                </div>
+                
+                <div class="loading-state" id="loadingState">
+                    <div class="loading-spinner"></div>
+                    <p>Загрузка аниме...</p>
+                </div>
+                
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📭</div>
+                    <p>Аниме не найдено</p>
+                    <p>Попробуйте изменить запрос или источник данных</p>
+                </div>
+            </section>
+
+            <!-- Anime Details Section -->
+            <section class="anime-details-section" id="animeDetailsSection" style="display: none;">
+                <button class="back-btn" id="backBtn">← Назад</button>
+                <div class="anime-details-container">
+                    <div class="anime-details-left">
+                        <img src="" alt="" class="anime-details-cover" id="animeDetailsCover">
+                        <div class="anime-details-info">
+                            <h2 class="anime-details-title" id="animeDetailsTitle"></h2>
+                            <div class="anime-details-rating" id="animeDetailsRating"></div>
+                            <p class="anime-details-description" id="animeDetailsDescription"></p>
+                            <button class="favorite-btn" id="favoriteBtn">❤️ В избранное</button>
+                        </div>
+                    </div>
+                    <div class="anime-details-right">
+                        <h3>Выбор серии</h3>
+                        <div class="resolution-selector">
+                            <label for="resolutionSelect">Качество видео:</label>
+                            <select id="resolutionSelect" class="resolution-select">
+                                <option value="1080">1080p</option>
+                                <option value="720" selected>720p</option>
+                                <option value="480">480p</option>
+                                <option value="360">360p</option>
+                            </select>
+                        </div>
+                        <div class="season-selector">
+                            <label for="seasonSelect">Сезон:</label>
+                            <select id="seasonSelect" class="season-select">
+                                <option value="1">Сезон 1</option>
+                            </select>
+                        </div>
+                        <div class="episodes-list" id="episodesList">
+                            <!-- Episodes will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Section -->
+            <section class="history-section" id="historySection" style="display: none;">
+                <h2>История просмотра</h2>
+                <div class="history-grid" id="historyGrid">
+                    <!-- History items will be inserted here -->
+                </div>
+                <div class="empty-state" id="historyEmptyState" style="display: none;">
+                    <div class="empty-icon">📜</div>
+                    <p>История пуста</p>
+                </div>
+            </section>
+
+            <!-- Favorites Section -->
+            <section class="favorites-section" id="favoritesSection" style="display: none;">
+                <h2>Избранное</h2>
+                <div class="favorites-grid" id="favoritesGrid">
+                    <!-- Favorites items will be inserted here -->
+                </div>
+                <div class="empty-state" id="favoritesEmptyState" style="display: none;">
+                    <div class="empty-icon">❤️</div>
+                    <p>Список избранного пуст</p>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section class="settings-section" id="settingsSection" style="display: none;">
+                <h2>Настройки</h2>
+                <div class="settings-container">
+                    <div class="settings-group">
+                        <h3>Shikimori OAuth</h3>
+                        <p class="settings-description">Подключите ваш аккаунт Shikimori для синхронизации просмотра</p>
+                        <div class="settings-item">
+                            <label>Статус подключения:</label>
+                            <span id="oauthStatus" class="oauth-status">Не подключено</span>
+                        </div>
+                        <button class="settings-btn" id="oauthLoginBtn">Войти через Shikimori</button>
+                        <button class="settings-btn settings-btn-danger" id="oauthLogoutBtn" style="display: none;">Выйти</button>
+                    </div>
+                    <div class="settings-group">
+                        <h3>Источник данных</h3>
+                        <div class="settings-item">
+                            <label for="defaultParser">Парсер по умолчанию:</label>
+                            <select id="defaultParser" class="settings-select">
+                                <option value="animevost">AnimeVost</option>
+                                <option value="shikimori">Shikimori</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-group">
+                        <h3>Данные</h3>
+                        <button class="settings-btn settings-btn-danger" id="clearHistoryBtn">Очистить историю</button>
+                        <button class="settings-btn settings-btn-danger" id="clearFavoritesBtn">Очистить избранное</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

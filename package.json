@@ -1,0 +1,44 @@
+{
+  "name": "anilinux",
+  "version": "1.0.0",
+  "description": "Anime viewer for Linux with Shikimori OAuth integration",
+  "author": {
+    "name": "nikren",
+    "email": "superdug000@gmail.com"
+  },
+  "homepage": "https://github.com/nikren/anilinux",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "axios": "^0.27.2",
+    "cheerio": "1.0.0-rc.10"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.anilinux.app",
+    "productName": "Anilinux-electron",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": true,
+    "linux": {
+      "target": ["AppImage", "deb", "pacman"],
+      "category": "Video",
+      "maintainer": "nikren <superdug000@gmail.com>",
+      "synopsis": "Anime viewer for Linux",
+      "description": "Anime viewer for Linux with Shikimori OAuth integration"
+    },
+    "pacman": {
+      "packageCategory": "multimedia",
+      "depends": ["mpv"],
+      "compression": "xz"
+    }
+  }
+}
