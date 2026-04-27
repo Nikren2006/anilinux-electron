@@ -62,13 +62,6 @@ jobs:
           path: dist/*.deb
           retention-days: 30
 
-      - name: Upload artifacts (Linux Pacman)
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-pacman-build
-          path: dist/*.pkg.tar.xz
-          retention-days: 30
 
       - name: Upload artifacts (Windows)
         if: matrix.os == 'windows-latest'
@@ -94,7 +87,6 @@ jobs:
           files: |
             dist/*.AppImage
             dist/*.deb
-            dist/*.pkg.tar.xz
             dist/*.exe
             dist/*.dmg
           fail_on_unmatched_files: true

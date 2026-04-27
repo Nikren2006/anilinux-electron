@@ -29,16 +29,11 @@
     },
     "asar": true,
     "linux": {
-      "target": ["AppImage", "deb", "pacman"],
+      "target": ["AppImage", "deb"],
       "category": "Video",
       "maintainer": "nikren <superdug000@gmail.com>",
       "synopsis": "Anime viewer for Linux",
       "description": "Anime viewer for Linux with Shikimori OAuth integration"
-    },
-    "pacman": {
-      "packageCategory": "multimedia",
-      "depends": ["mpv"],
-      "compression": "xz"
     }
   }
 }
