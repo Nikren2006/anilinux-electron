@@ -10,11 +10,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -28,67 +24,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build on Linux
-        if: matrix.os == 'ubuntu-latest'
+      - name: Build
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build on Windows
-        if: matrix.os == 'windows-latest'
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build on macOS
-        if: matrix.os == 'macos-latest'
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Upload artifacts (Linux AppImage)
         uses: actions/upload-artifact@v4
         with:
-          name: linux-build
+          name: linux-appimage
           path: dist/*.AppImage
           retention-days: 30
 
       - name: Upload artifacts (Linux DEB)
-        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-deb-build
+          name: linux-deb
           path: dist/*.deb
           retention-days: 30
 
-
-      - name: Upload artifacts (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build
-          path: dist/*.exe
-          retention-days: 30
-
-      - name: Upload artifacts (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build
-          path: dist/*.dmg
-          retention-days: 30
-
       - name: Upload to Release
-        if: matrix.os == 'ubuntu-latest'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           files: |
             dist/*.AppImage
             dist/*.deb
-            dist/*.exe
-            dist/*.dmg
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
