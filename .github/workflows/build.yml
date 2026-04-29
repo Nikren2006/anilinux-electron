@@ -7,6 +7,10 @@ on:
         description: 'Release tag (e.g., v1.0.0)'
         required: true
         type: string
+      disc:
+        description: 'Discription'
+        required: true
+        type: string  
 
 permissions:
   contents: write
@@ -50,6 +54,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
+          discription: ${{ github.event.inputs.disc }}
           files: |
             dist/*.AppImage
             dist/*.deb
