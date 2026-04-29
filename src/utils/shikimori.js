@@ -136,7 +136,11 @@ async function getAnimeEpisodes(animeId) {
 
 async function getUserAnimeList(accessToken, status = null) {
   try {
-    const params = { user_id: 'me' };
+    // First get user info to get the numeric user ID
+    const userInfo = await getUserInfo(accessToken);
+    const userId = userInfo.id;
+    
+    const params = { user_id: userId };
     if (status) params.status = status;
     
     const response = await axios.get(`${shikimoriConfig.apiURL}/v2/user_rates`, {
@@ -178,14 +182,37 @@ async function updateAnimeStatus(accessToken, animeId, episodes, status = 'watch
     return response.data;
   } catch (error) {
     console.error('Error updating anime status:', error.response?.data || error.message);
+    if (error.response?.data?.errors) {
+      console.error('API errors:', error.response.data.errors);
+    }
     throw error;
   }
 }
 
-async function syncEpisodes(animeId, episodes, accessToken) {
+async function syncEpisodes(animeId, episodes, accessToken, animeTitle = null) {
   try {
-    await updateAnimeStatus(accessToken, animeId, episodes, 'watching');
-    return { success: true };
+    // First, try to update existing user rate
+    try {
+      await updateAnimeStatus(accessToken, animeId, episodes, 'watching');
+      return { success: true };
+    } catch (updateError) {
+      console.log('Update failed, trying to find anime by title and add to list');
+      
+      // If update fails (anime not in user list), try to find it by title and add
+      if (animeTitle) {
+        const searchResults = await searchAnime(animeTitle, 5);
+        if (searchResults.length > 0) {
+          const matchedAnime = searchResults[0];
+          console.log('Found anime on Shikimori:', matchedAnime.name, 'ID:', matchedAnime.id);
+          
+          // Try to update with the found Shikimori ID
+          await updateAnimeStatus(accessToken, matchedAnime.id, episodes, 'watching');
+          return { success: true, shikimoriId: matchedAnime.id };
+        }
+      }
+      
+      throw updateError;
+    }
   } catch (error) {
     console.error('Error syncing episodes:', error);
     return { success: false, error: error.message };

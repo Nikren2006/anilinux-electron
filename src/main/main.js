@@ -333,6 +333,20 @@ app.on('ready', () => {
     event.reply('history-response', history);
   });
 
+  // Handle watch progress operations
+  ipcMain.on('get-watch-progress', async (event) => {
+    const watchProgress = store.get('watchProgress', {});
+    event.reply('watch-progress-response', watchProgress);
+  });
+
+  ipcMain.on('save-watch-progress', async (event, { animeId, episodeNum, position }) => {
+    const watchProgress = store.get('watchProgress', {});
+    const episodeKey = `${animeId}_ep${episodeNum}`;
+    watchProgress[episodeKey] = position;
+    store.set('watchProgress', watchProgress);
+    event.reply('save-watch-progress-response', { success: true });
+  });
+
   ipcMain.on('add-to-history', async (event, { anime }) => {
     const history = store.get('history', []);
     const existingIndex = history.findIndex(item => item.id === anime.id);
@@ -348,6 +362,87 @@ app.on('ready', () => {
     
     store.set('history', history.slice(0, 100)); // Keep last 100 items
     event.reply('add-to-history-response', { success: true });
+  });
+
+  // Handle getting anime watch progress
+  ipcMain.on('get-anime-watch-progress', async (event, { animeId, animeTitle }) => {
+    console.log('get-anime-watch-progress IPC received with animeId:', animeId, 'animeTitle:', animeTitle);
+    
+    const watchProgress = store.get('watchProgress', {});
+    const history = store.get('history', []);
+    
+    // Get all episode progress for this anime
+    const animeProgress = {};
+    Object.keys(watchProgress).forEach(key => {
+      if (key.startsWith(`${animeId}_ep`)) {
+        const episodeNum = parseInt(key.replace(`${animeId}_ep`, ''));
+        animeProgress[episodeNum] = watchProgress[key];
+      }
+    });
+    
+    console.log('Local watch progress for anime', animeId, ':', animeProgress);
+    
+    // Get last watched episode from history
+    const historyItem = history.find(item => item.id === animeId);
+    const lastEpisode = historyItem?.lastEpisode || null;
+    
+    // Try to get progress from Shikimori if logged in
+    const accessToken = store.get('shikimori.accessToken');
+    let shikimoriProgress = null;
+    if (accessToken) {
+      try {
+        console.log('Fetching Shikimori user rates...');
+        const userRates = await shikimori.getUserAnimeList(accessToken);
+        console.log('Shikimori user rates count:', userRates.length);
+        
+        // Try to match by anime ID first
+        let animeRate = userRates.find(rate => {
+          const rateAnimeId = rate.anime?.id;
+          const rateTargetId = rate.target_id;
+          return rateAnimeId === animeId || rateTargetId === animeId;
+        });
+        
+        // If not found by ID, try to match by title
+        if (!animeRate && animeTitle) {
+          console.log('Trying to match by title:', animeTitle);
+          const normalizedTitle = animeTitle.toLowerCase().replace(/[^a-zа-я0-9\s]/g, '');
+          
+          animeRate = userRates.find(rate => {
+            const rateTitle = rate.anime?.name || '';
+            const normalizedRateTitle = rateTitle.toLowerCase().replace(/[^a-zа-я0-9\s]/g, '');
+            return normalizedRateTitle.includes(normalizedTitle) || normalizedTitle.includes(normalizedRateTitle);
+          });
+          
+          if (animeRate) {
+            console.log('Matched by title:', animeRate.anime?.name);
+          }
+        }
+        
+        if (animeRate) {
+          shikimoriProgress = {
+            episodes: animeRate.episodes,
+            status: animeRate.status,
+            animeId: animeRate.anime?.id,
+            targetId: animeRate.targetId,
+            animeName: animeRate.anime?.name
+          };
+          console.log('Shikimori progress for anime', animeId, ':', shikimoriProgress);
+        } else {
+          console.log('No Shikimori progress found for anime ID:', animeId, 'or title:', animeTitle);
+        }
+      } catch (error) {
+        console.error('Error getting Shikimori progress:', error);
+      }
+    } else {
+      console.log('Not logged in to Shikimori');
+    }
+    
+    console.log('Sending anime-watch-progress-response');
+    event.reply('anime-watch-progress-response', { 
+      progress: animeProgress, 
+      lastEpisode,
+      shikimoriProgress
+    });
   });
 
   ipcMain.on('clear-history', async (event) => {
@@ -400,9 +495,9 @@ app.on('ready', () => {
   });
 
   // Handle playing episode with mpv
-  ipcMain.on('play-episode', async (event, { videoUrl, title, resolution }) => {
+  ipcMain.on('play-episode', async (event, { videoUrl, title, resolution, animeId, episodeNum }) => {
     try {
-      console.log('Playing episode with mpv:', videoUrl, 'resolution:', resolution);
+      console.log('Playing episode with mpv:', videoUrl, 'resolution:', resolution, 'animeId:', animeId, 'episodeNum:', episodeNum);
       
       if (!videoUrl) {
         console.error('No video URL provided');
@@ -410,12 +505,32 @@ app.on('ready', () => {
         return;
       }
       
+      // Create IPC socket path for mpv
+      const ipcSocketPath = path.join(userDataPath, 'mpv-socket');
+      
+      // Remove old socket if exists
+      if (fs.existsSync(ipcSocketPath)) {
+        fs.unlinkSync(ipcSocketPath);
+      }
+      
+      // Get saved watch progress for this episode
+      const watchProgress = store.get('watchProgress', {});
+      const episodeKey = `${animeId}_ep${episodeNum}`;
+      const savedPosition = watchProgress[episodeKey] || 0;
+      
       const mpvArgs = [
         videoUrl,
         `--title=${title || 'AniLinux'}`,
         '--volume=70',
-        '--no-border'
+        '--no-border',
+        '--keep-open=no',
+        `--input-ipc-server=${ipcSocketPath}`
       ];
+      
+      // Add start position if saved
+      if (savedPosition > 0) {
+        mpvArgs.push(`--start=${savedPosition}`);
+      }
       
       // Add resolution setting if provided
       if (resolution) {
@@ -427,6 +542,140 @@ app.on('ready', () => {
       const mpvProcess = spawn('mpv', mpvArgs, {
         detached: true,
         stdio: 'ignore'
+      });
+      
+      let lastPosition = 0;
+      let positionInterval = null;
+      
+      // Wait for socket to be created, then connect to it
+      const connectToSocket = () => {
+        setTimeout(async () => {
+          if (!fs.existsSync(ipcSocketPath)) {
+            console.log('Socket not created yet, retrying...');
+            connectToSocket();
+            return;
+          }
+          
+          try {
+            const net = require('net');
+            const client = net.createConnection({ path: ipcSocketPath });
+            
+            client.on('connect', () => {
+              console.log('Connected to mpv IPC socket');
+              
+              // Request time position every 5 seconds
+              positionInterval = setInterval(() => {
+                try {
+                  const command = JSON.stringify({ command: ['get_property', 'time-pos'] });
+                  client.write(command + '\n');
+                } catch (e) {
+                  console.error('Error sending command to mpv:', e);
+                }
+              }, 5000);
+              
+              // Also request initial position
+              const command = JSON.stringify({ command: ['get_property', 'time-pos'] });
+              client.write(command + '\n');
+            });
+            
+            client.on('data', (data) => {
+              try {
+                const response = JSON.parse(data.toString());
+                if (response.data !== undefined && typeof response.data === 'number') {
+                  lastPosition = response.data;
+                  console.log('Current position:', lastPosition);
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete JSON
+              }
+            });
+            
+            client.on('error', (err) => {
+              console.error('IPC socket error:', err);
+            });
+            
+            client.on('close', () => {
+              console.log('IPC socket closed');
+              if (positionInterval) {
+                clearInterval(positionInterval);
+              }
+            });
+          } catch (error) {
+            console.error('Error connecting to mpv socket:', error);
+          }
+        }, 1000);
+      };
+      
+      connectToSocket();
+      
+      // Save position when mpv exits
+      mpvProcess.on('close', async (code) => {
+        console.log('mpv closed with code:', code, 'last position:', lastPosition);
+        
+        // Clean up socket
+        if (fs.existsSync(ipcSocketPath)) {
+          try {
+            fs.unlinkSync(ipcSocketPath);
+          } catch (e) {
+            console.error('Error removing socket:', e);
+          }
+        }
+        
+        // Clean up interval
+        if (positionInterval) {
+          clearInterval(positionInterval);
+        }
+        
+        if (lastPosition > 0 && animeId && episodeNum) {
+          const watchProgress = store.get('watchProgress', {});
+          const episodeKey = `${animeId}_ep${episodeNum}`;
+          watchProgress[episodeKey] = lastPosition;
+          store.set('watchProgress', watchProgress);
+          console.log('Saved watch progress:', episodeKey, '=', lastPosition);
+          
+          // Sync with Shikimori if logged in
+          const accessToken = store.get('shikimori.accessToken');
+          if (accessToken && code === 0) {
+            try {
+              console.log('Syncing episode', episodeNum, 'with Shikimori for anime', animeId);
+              
+              // Try to find matching Shikimori anime ID by title
+              const userRates = await shikimori.getUserAnimeList(accessToken);
+              let shikimoriAnimeId = animeId;
+              
+              // Try to match by title if direct ID doesn't work
+              const matchedRate = userRates.find(rate => {
+                const rateAnimeId = rate.anime?.id;
+                const rateTargetId = rate.target_id;
+                if (rateAnimeId === animeId || rateTargetId === animeId) {
+                  shikimoriAnimeId = rateAnimeId || rateTargetId;
+                  return true;
+                }
+                return false;
+              });
+              
+              if (!matchedRate && title) {
+                // Try to match by title
+                const normalizedTitle = title.toLowerCase().replace(/[^a-zа-я0-9\s]/g, '');
+                const titleMatchedRate = userRates.find(rate => {
+                  const rateTitle = rate.anime?.name || '';
+                  const normalizedRateTitle = rateTitle.toLowerCase().replace(/[^a-zа-я0-9\s]/g, '');
+                  return normalizedRateTitle.includes(normalizedTitle) || normalizedTitle.includes(normalizedRateTitle);
+                });
+                
+                if (titleMatchedRate) {
+                  shikimoriAnimeId = titleMatchedRate.anime?.id || titleMatchedRate.target_id;
+                  console.log('Matched by title:', title, '-> Shikimori ID:', shikimoriAnimeId);
+                }
+              }
+              
+              await shikimori.syncEpisodes(shikimoriAnimeId, episodeNum, accessToken, title);
+              console.log('Shikimori sync successful for anime ID:', shikimoriAnimeId);
+            } catch (error) {
+              console.error('Error syncing with Shikimori:', error);
+            }
+          }
+        }
       });
       
       mpvProcess.on('error', (err) => {

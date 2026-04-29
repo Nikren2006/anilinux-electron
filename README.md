@@ -2,7 +2,7 @@
 
 AniLinux - это десктопное приложение для просмотра аниме на Linux, построенное на Electron с интеграцией OAuth авторизации через Shikimori.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)
 ![Electron](https://img.shields.io/badge/Electron-28.0.0-9BE349.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 

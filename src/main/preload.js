@@ -21,7 +21,8 @@ window.electronAPI = {
       'remove-from-favorites',
       'clear-favorites',
       'get-settings',
-      'save-settings'
+      'save-settings',
+      'get-anime-watch-progress'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -52,7 +53,8 @@ window.electronAPI = {
       'remove-from-favorites-response',
       'clear-favorites-response',
       'settings-response',
-      'save-settings-response'
+      'save-settings-response',
+      'anime-watch-progress-response'
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender` 

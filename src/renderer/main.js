@@ -130,6 +130,14 @@ function setupEventListeners() {
     displayAnimeDetails(data);
   });
   
+  window.electronAPI.receive('anime-watch-progress-response', (data) => {
+    console.log('Watch progress received:', data);
+    window.currentAnimeWatchProgress = data.progress || {};
+    window.currentAnimeLastEpisode = data.lastEpisode;
+    window.currentShikimoriProgress = data.shikimoriProgress;
+    updateEpisodesWatchStatus();
+  });
+  
   window.electronAPI.receive('anime-details-error', (data) => {
     console.error('Error loading anime details:', data.error);
     alert('Ошибка загрузки деталей аниме');
@@ -427,11 +435,17 @@ function filterAnimeList(searchTerm) {
 }
 
 function showAnimeDetails(animeId, link) {
+  console.log('showAnimeDetails called with animeId:', animeId, 'link:', link, 'currentAnime:', currentAnime);
+  
   document.querySelectorAll('section').forEach(section => {
     section.style.display = 'none';
   });
   document.querySelector('.parser-section').style.display = 'none';
   document.getElementById('animeDetailsSection').style.display = 'block';
+  
+  // Load watch progress for this anime
+  console.log('Sending get-anime-watch-progress with animeId:', animeId, 'animeTitle:', currentAnime?.title);
+  window.electronAPI.send('get-anime-watch-progress', { animeId, animeTitle: currentAnime?.title });
   
   window.electronAPI.send('get-anime-details', { animeId, link });
 }
@@ -460,6 +474,7 @@ function displayAnimeDetails(details) {
       <div class="episode-item" data-episode-id="${ep.id}" data-url="${ep.url || ''}" data-ajax-id="${ep.ajaxId || ''}">
         <div class="episode-number">${ep.id}</div>
         <div class="episode-title">${ep.title}</div>
+        <div class="episode-progress"></div>
       </div>
     `).join('');
   }
@@ -474,6 +489,11 @@ function displayAnimeDetails(details) {
   });
   
   updateFavoriteButton();
+  
+  // Update watch status if progress data is already loaded
+  if (window.currentAnimeWatchProgress) {
+    updateEpisodesWatchStatus();
+  }
 }
 
 function playEpisode(episodeId, episodeUrl, episodeAjaxId) {
@@ -482,9 +502,13 @@ function playEpisode(episodeId, episodeUrl, episodeAjaxId) {
   if (currentAnime) {
     window.electronAPI.send('add-to-history', { anime: { ...currentAnime, lastEpisode: episodeId } });
     
+    // Store current playing episode for video URL response
+    window.currentPlayingEpisode = episodeId;
+    
+    // Mark current episode as watched
     document.querySelectorAll('.episode-item').forEach(item => {
-      item.classList.remove('watched');
-      if (parseInt(item.dataset.episodeId) <= episodeId) {
+      const itemEpisodeId = parseInt(item.dataset.episodeId);
+      if (itemEpisodeId === episodeId) {
         item.classList.add('watched');
       }
     });
@@ -517,7 +541,9 @@ function playEpisode(episodeId, episodeUrl, episodeAjaxId) {
         window.electronAPI.send('play-episode', {
           videoUrl: finalUrl,
           title: currentAnime.title,
-          resolution: selectedResolution
+          resolution: selectedResolution,
+          animeId: currentAnime.id,
+          episodeNum: episodeId
         });
       }
     } else {
@@ -526,6 +552,17 @@ function playEpisode(episodeId, episodeUrl, episodeAjaxId) {
   }
 }
 
+// Add handler for play-episode response to refresh progress
+window.electronAPI.receive('play-episode-response', (data) => {
+  console.log('Play episode response:', data);
+  // Reload watch progress after starting playback
+  if (currentAnime && currentAnime.id) {
+    setTimeout(() => {
+      window.electronAPI.send('get-anime-watch-progress', { animeId: currentAnime.id });
+    }, 1000);
+  }
+});
+
 // Add handler for episode video URL response
 window.electronAPI.receive('episode-video-url-response', (data) => {
   console.log('Received episode video URL:', data.videoUrl);
@@ -533,7 +570,9 @@ window.electronAPI.receive('episode-video-url-response', (data) => {
     window.electronAPI.send('play-episode', {
       videoUrl: data.videoUrl,
       title: currentAnime.title,
-      resolution: selectedResolution
+      resolution: selectedResolution,
+      animeId: currentAnime.id,
+      episodeNum: window.currentPlayingEpisode
     });
   }
 });
@@ -769,4 +808,63 @@ function getSampleData() {
       link: 'https://animevost.org/tip/anim/death-note'
     }
   ];
+}
+
+function updateEpisodesWatchStatus() {
+  console.log('updateEpisodesWatchStatus called');
+  console.log('currentAnimeWatchProgress:', window.currentAnimeWatchProgress);
+  console.log('currentShikimoriProgress:', window.currentShikimoriProgress);
+  console.log('currentAnimeLastEpisode:', window.currentAnimeLastEpisode);
+  
+  const progress = window.currentAnimeWatchProgress || {};
+  const shikimoriProgress = window.currentShikimoriProgress;
+  
+  const episodeItems = document.querySelectorAll('.episode-item');
+  console.log('Found episode items:', episodeItems.length);
+  
+  episodeItems.forEach(item => {
+    const episodeId = parseInt(item.dataset.episodeId);
+    const watchedTime = progress[episodeId] || 0;
+    
+    console.log('Episode', episodeId, 'watched time:', watchedTime);
+    
+    // Mark as watched if more than 90% watched or if it's the last watched episode
+    if (watchedTime > 0) {
+      item.classList.add('has-progress');
+      const progressEl = item.querySelector('.episode-progress');
+      console.log('Progress element for episode', episodeId, ':', progressEl);
+      if (progressEl) {
+        progressEl.textContent = formatTime(watchedTime);
+        console.log('Set progress text:', formatTime(watchedTime));
+      } else {
+        console.error('Progress element not found for episode', episodeId);
+      }
+    }
+    
+    // Mark episodes based on Shikimori progress
+    if (shikimoriProgress && shikimoriProgress.episodes && episodeId <= shikimoriProgress.episodes) {
+      item.classList.add('watched');
+      console.log('Marked episode', episodeId, 'as watched from Shikimori');
+    }
+    
+    // Mark episodes up to last watched as watched (local history)
+    if (window.currentAnimeLastEpisode && episodeId <= window.currentAnimeLastEpisode) {
+      item.classList.add('watched');
+      console.log('Marked episode', episodeId, 'as watched from history');
+    }
+  });
+}
+
+function formatTime(seconds) {
+  if (seconds < 60) {
+    return `${Math.round(seconds)}с`;
+  } else if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  } else {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return `${hours}:${mins.toString().padStart(2, '0')}`;
+  }
 }
