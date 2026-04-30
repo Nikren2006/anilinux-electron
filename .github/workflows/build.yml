@@ -7,8 +7,8 @@ on:
         description: 'Release tag (e.g., v1.0.0)'
         required: true
         type: string
-      disc:
-        description: 'Discription'
+      release_description:
+        description: 'Release description'
         required: true
         type: string  
 
@@ -83,7 +83,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
-          discription: ${{ github.event.inputs.disc }}
+          description: ${{ github.event.inputs.release_description }}
           files: |
             artifacts/linux-appimage/*.AppImage
             artifacts/linux-deb/*.deb
