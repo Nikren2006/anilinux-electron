@@ -49,6 +49,13 @@ jobs:
           name: linux-deb
           path: dist/*.deb
           retention-days: 30
+          
+      - name: Upload artifacts (Linux DEB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-exe
+          path: dist/*.exe
+          retention-days: 30
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
