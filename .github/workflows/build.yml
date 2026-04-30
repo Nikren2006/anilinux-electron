@@ -17,7 +17,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
@@ -37,6 +46,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (Linux AppImage)
+        if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
@@ -44,11 +54,30 @@ jobs:
           retention-days: 30
 
       - name: Upload artifacts (Linux DEB)
+        if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: linux-deb
           path: dist/*.deb
           retention-days: 30
+
+      - name: Upload artifacts (Windows NSIS)
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-nsis
+          path: dist/*.exe
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
@@ -56,8 +85,9 @@ jobs:
           tag_name: ${{ github.event.inputs.release_tag }}
           discription: ${{ github.event.inputs.disc }}
           files: |
-            dist/*.AppImage
-            dist/*.deb
+            artifacts/linux-appimage/*.AppImage
+            artifacts/linux-deb/*.deb
+            artifacts/windows-nsis/*.exe
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

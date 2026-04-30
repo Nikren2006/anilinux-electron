@@ -23,7 +23,7 @@
   },
   "build": {
     "appId": "com.anilinux.app",
-    "productName": "Anilinux-electron",
+    "productName": "Anilinux",
     "directories": {
       "output": "dist"
     },
@@ -34,6 +34,17 @@
       "maintainer": "nikren <superdug000@gmail.com>",
       "synopsis": "Anime viewer for Linux",
       "description": "Anime viewer for Linux with Shikimori OAuth integration"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }

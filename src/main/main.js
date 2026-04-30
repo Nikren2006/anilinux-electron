@@ -680,7 +680,15 @@ app.on('ready', () => {
       
       mpvProcess.on('error', (err) => {
         console.error('mpv spawn error:', err);
-        event.reply('play-episode-error', { error: 'mpv не установлен или не найден. Установите: sudo pacman -S mpv' });
+        let installCommand = '';
+        if (process.platform === 'win32') {
+          installCommand = 'Скачайте и установите mpv с https://mpv.io/installation/';
+        } else if (process.platform === 'darwin') {
+          installCommand = 'Установите mpv: brew install mpv';
+        } else {
+          installCommand = 'Установите mpv: sudo pacman -S mpv (Arch) или sudo apt install mpv (Debian/Ubuntu)';
+        }
+        event.reply('play-episode-error', { error: `mpv не установлен или не найден. ${installCommand}` });
       });
       
       mpvProcess.unref();
